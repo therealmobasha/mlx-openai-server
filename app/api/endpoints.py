@@ -1151,7 +1151,7 @@ def format_final_response(
                     finish_reason="stop",
                 )
             ],
-            usage=usage,
+            usage=usage.model_dump() if usage else None,
             request_id=request_id,
         )
 
@@ -1179,7 +1179,7 @@ def format_final_response(
                     finish_reason="stop",
                 )
             ],
-            usage=usage,
+            usage=usage.model_dump() if usage else None,
             request_id=request_id,
         )
     for idx, tool_call in enumerate(tool_calls):
@@ -1210,7 +1210,7 @@ def format_final_response(
         created=int(time.time()),
         model=model,
         choices=[Choice(index=0, message=message, finish_reason="tool_calls")],
-        usage=usage,
+        usage=usage.model_dump() if usage else None,
         request_id=request_id,
     )
 
