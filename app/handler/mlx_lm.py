@@ -500,6 +500,25 @@ class MLXLMHandler:
                 cache,
                 rest_input_ids,
             )
+
+            # Speculative decoding requires a trimmable prompt cache.
+            # If speculative decoding is enabled but the cached cache is not
+            # trimmable (e.g., ArraysCache from hybrid/SSM models), we must
+            # create a fresh cache to avoid the mlx_lm error:
+            # "Speculative decoding requires a trimmable prompt cache"
+            if (
+                cache is not None
+                and self.model.has_draft_model
+                and not self.model.cache_is_trimmable
+            ):
+                logger.warning(
+                    "Speculative decoding is enabled but cached prompt cache uses "
+                    "non-trimmable ArraysCache. Creating fresh cache to enable "
+                    "speculative decoding."
+                )
+                cache = None
+                rest_input_ids = input_ids
+
             if cache is None:
                 cache = self.model.create_prompt_cache()
 
@@ -1313,7 +1332,7 @@ class MLXLMHandler:
             input_ids=list(ctx.cache_key),
             max_tokens=int(max_tokens),
             sampler=sampler,
-            logits_processors=logits_processors or None,
+            logits_processors=logits_processors if logits_processors is not None else None,
             state_machine=state_machine,
             segments=ctx.batched_segments,
             segment_types=ctx.batched_segment_types,

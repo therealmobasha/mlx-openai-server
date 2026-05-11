@@ -206,12 +206,13 @@ class MLXVLMHandler:
     ):
         """Submit a multimodal request to the VLM scheduler."""
         model_inputs = dict(model_params.get("model_inputs") or {})
+        model_logits_processors = self.model.build_logits_processors(model_params)
         return scheduler.submit_stream(
             model_inputs,
             prompt_tokens=self.model.count_prompt_tokens(model_inputs),
             max_tokens=self.model.resolve_max_tokens(model_params),
             sampler=self.model.build_sampler(model_params),
-            logits_processors=self.model.build_logits_processors(model_params) or None,
+            logits_processors=model_logits_processors if model_logits_processors is not None else None,
         )
 
     async def _collect_batched_response(
