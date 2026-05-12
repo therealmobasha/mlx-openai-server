@@ -47,6 +47,38 @@ try:
     _BATCH_GENERATOR_ACCEPTS_STREAM = (
         "stream" in inspect.signature(BatchGenerator.__init__).parameters
     )
+
+    # Monkey-patch PromptProcessingBatch.extend to fix a bug in mlx-lm:
+    # the `any()` check returns False for `[[]]` (empty inner lists) because
+    # `[]` is falsy, causing it to replace valid empty processor lists with
+    # `[None]` which then crashes GenerationBatch._step with
+    # ``TypeError: 'NoneType' object is not iterable``.
+    from mlx_lm.generate import PromptProcessingBatch, _extend_cache  # noqa: PLC0415
+
+    _original_extend = PromptProcessingBatch.extend
+
+    def _patched_extend(
+        self: PromptProcessingBatch, batch: PromptProcessingBatch
+    ) -> None:
+        if not any(self.samplers):
+            self.samplers = [None] * len(self.uids)
+        if len(self.logits_processors) == 0:
+            self.logits_processors = [None] * len(self.uids)
+        samplers = batch.samplers if any(batch.samplers) else [None] * len(batch.uids)
+        logits_processors = (
+            batch.logits_processors
+            if len(batch.logits_processors) > 0
+            else [None] * len(batch.uids)
+        )
+        self.uids.extend(batch.uids)
+        self.prompt_cache = _extend_cache(self.prompt_cache, batch.prompt_cache)
+        self.tokens.extend(batch.tokens)
+        self.samplers.extend(samplers)
+        self.logits_processors.extend(logits_processors)
+        self.max_tokens.extend(batch.max_tokens)
+        self.state_machines.extend(batch.state_machines)
+
+    PromptProcessingBatch.extend = _patched_extend
 except ImportError:  # pragma: no cover — only exercised on older mlx-lm pins
     BatchGenerator = None  # type: ignore[assignment,misc]
     SequenceStateMachine = None  # type: ignore[assignment,misc]
